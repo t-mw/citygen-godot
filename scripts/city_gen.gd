@@ -3,8 +3,6 @@ extends Node2D
 const BRANCH_ANGLE_DEVIATION := 3.0 # degrees
 const STRAIGHT_ANGLE_DEVIATION := 15.0 # degrees
 const MINIMUM_INTERSECTION_DEVIATION := 30 # degrees
-const DEFAULT_SEGMENT_WIDTH := 5 # pixels
-const HIGHWAY_SEGMENT_WIDTH := 20 # pixels
 const DEFAULT_SEGMENT_LENGTH := 300 # world units
 const HIGHWAY_SEGMENT_LENGTH := 400 # world units
 const DEFAULT_BRANCH_PROBABILITY := 0.4
@@ -36,27 +34,8 @@ onready var population_heatmap: Heatmap = $"../PopulationHeatmap"
 onready var physics_space := get_world_2d().direct_space_state
 onready var physics_space_rid := get_world_2d().space
 
-var generated_segments = []
-var generated_buildings = []
-
-func _ready():
-    randomize()
-
-    var noise = population_heatmap.noise
-    noise.seed = randi()
-    noise.octaves = 4
-    noise.period = 10.0
-    noise.persistence = 0.2
-
-    generated_segments = generate_segments()
-    generated_buildings = generate_buildings(generated_segments)
-
-func _draw():
-    for segment in generated_segments:
-        var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
-        draw_line(segment.start, segment.end, Color.black, width, true)
-    for building in generated_buildings:
-        draw_colored_polygon(building.generate_corners(), Color.black, [], null, null, true)
+func randomize_heatmap():
+    population_heatmap.noise.seed = randi()
 
 func generate_segments() -> Array:
     var segments := []
