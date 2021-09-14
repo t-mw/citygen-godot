@@ -93,10 +93,10 @@ func _physics_process(delta):
 
     # When RMB is pressed, move camera by difference of mouse position
     if drag and __rmbk:
-        camera_movement = _prev_mouse_pos - get_local_mouse_position()
+        camera_movement = (_prev_mouse_pos - get_local_mouse_position()) * delta
 
     # Update position of the camera.
-    position += camera_movement * get_zoom()
+    position += camera_movement * 100.0
 
     # Set camera movement to zero, update old mouse position.
     camera_movement = Vector2(0,0)
