@@ -1,7 +1,6 @@
 extends Node2D
 
 # TODO: remove r?
-# TODO: use quadtree?
 # TODO: cross product necessary in Segment.get_direction?
 # TODO: replace angle_between with godot function
 
@@ -29,6 +28,9 @@ func random_straight_angle() -> float:
 const Heatmap = preload("res://heatmap.gd")
 onready var population_heatmap: Heatmap = $"../PopulationHeatmap"
 
+onready var physics_space := get_world_2d().direct_space_state
+onready var physics_space_rid := get_world_2d().space
+
 var segments = []
 
 func _ready():
@@ -40,14 +42,26 @@ func _ready():
     noise.period = 10.0
     noise.persistence = 0.2
 
-    segments = generate()
+    segments = generate_segments()
 
 func _draw():
     for segment in segments:
         var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
         draw_line(segment.r_start, segment.r_end, Color.black, width, true)
 
-func generate():
+func _process(delta):
+    var query_shape = RectangleShape2D.new()
+    var query = Physics2DShapeQueryParameters.new()
+    query.collide_with_bodies = false
+    query.collide_with_areas = true
+    query.set_shape(query_shape)
+    query.transform = Transform2D.IDENTITY.translated(get_global_mouse_position())
+
+    var results = physics_space.intersect_shape(query)
+    if len(results) > 0:
+        var segment = results[0].collider as Segment
+
+func generate_segments() -> Array:
     var segments := []
     var priority_q := []
 
@@ -79,6 +93,7 @@ func generate():
         var accepted := local_constraints(min_segment, segments)
         if accepted:
             min_segment.setup_branch_links()
+            min_segment.attach_to_physics_space(physics_space_rid)
             segments.append(min_segment)
             for new_segment in global_goals_generate(min_segment):
                 new_segment.t = min_segment.t + 1 + new_segment.t
@@ -93,7 +108,22 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     var action = null
     var action_priority = 0
     var previous_intersection_distance_squared = null
-    var matches := segments # TODO: filter potential colliders with quadtree
+
+    # filter potential colliders with physics query
+    var query = Physics2DShapeQueryParameters.new()
+    query.collide_with_bodies = false
+    query.collide_with_areas = true
+    query.shape_rid = segment.create_physics_shape()
+
+    var matches = []
+    var query_results = physics_space.intersect_shape(query)
+    for result in query_results:
+        var other = result.collider as Segment
+        assert(other != null)
+        matches.append(other)
+
+    segment.destroy_physics_shape()
+
     for other in matches:
         if segment == other:
             continue
@@ -179,7 +209,6 @@ class LocalConstraintsSnapAction:
 
         return true
 
-
 class LocalConstraintsIntersectionRadiusAction:
     var other: Segment
     var intersection: Vector2
@@ -200,7 +229,7 @@ class LocalConstraintsIntersectionRadiusAction:
 func global_goals_generate(previous_segment: Segment) -> Array:
     var new_branches = []
     if !previous_segment.metadata.severed:
-        var template = GlobalGoalsTemplate.new(previous_segment)
+        var template := GlobalGoalsTemplate.new(previous_segment)
 
         var continue_straight = template.segment_continue(previous_segment.direction)
         var straight_pop = sample_population(continue_straight.r_start, continue_straight.r_end)
@@ -255,7 +284,11 @@ class GlobalGoalsTemplate:
         var t := NORMAL_BRANCH_TIME_DELAY_FROM_HIGHWAY if self.previous_segment.metadata.highway else 0
         return self.segment(direction, DEFAULT_SEGMENT_LENGTH, t, SegmentMetadata.new())
 
-class Segment:
+class Segment extends Object:
+    var physics_area: RID
+    var physics_shape: RID
+    var physics_space: RID
+
     var start: Vector2
     var end: Vector2
 
@@ -283,12 +316,14 @@ class Segment:
 
     func set_r_start(v: Vector2):
         r_start = v
-        # TODO: obj.collider.updateCollisionProperties({start: @start})
+        if self.physics_shape.get_id() != 0:
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(v, self.r_end))
         self.r_revision += 1
 
     func set_r_end(v: Vector2):
         r_end = v
-        # TODO: obj.collider.updateCollisionProperties({end: @end})
+        if self.physics_shape.get_id() != 0:
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.r_start, v))
         self.r_revision += 1
 
     func get_direction() -> float:
@@ -311,6 +346,36 @@ class Segment:
         self.metadata = _metadata
         self.r_start = _start
         self.r_end = _end
+
+    func _notification(n):
+        if n == NOTIFICATION_PREDELETE:
+            self.detach_from_physics_space()
+
+    func create_physics_shape() -> RID:
+        if self.physics_shape.get_id() == 0:
+            self.physics_shape = Physics2DServer.segment_shape_create()
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.r_start, self.r_end))
+        return self.physics_shape
+
+    func destroy_physics_shape():
+        if self.physics_shape.get_id() != 0:
+            Physics2DServer.free_rid(self.physics_shape)
+            self.physics_shape = RID()
+
+    func attach_to_physics_space(physics_space_rid: RID):
+        assert(physics_space_rid.get_id() != 0)
+        self.physics_area = Physics2DServer.area_create()
+        Physics2DServer.area_attach_object_instance_id(self.physics_area, get_instance_id())
+        Physics2DServer.area_set_monitorable(self.physics_area, false)
+        Physics2DServer.area_add_shape(self.physics_area, self.create_physics_shape())
+        Physics2DServer.area_set_space(self.physics_area, physics_space_rid)
+        self.physics_space = physics_space_rid
+
+    func detach_from_physics_space():
+        if self.physics_area.get_id() != 0:
+            Physics2DServer.free_rid(self.physics_area)
+            self.physics_area = RID()
+        self.destroy_physics_shape()
 
     static func new_using_direction(_start: Vector2, _direction: float, _length: float, _t: int, _metadata: SegmentMetadata) -> Segment:
         var new_end := Vector2(_start.x + _length * sin(deg2rad(_direction)), _start.y + _length * cos(deg2rad(_direction)))
@@ -371,6 +436,8 @@ class Segment:
 
         segment.links_f.append(first_split)
         segment.links_f.append(second_split)
+
+        split_part.attach_to_physics_space(self.physics_space)
 
     func links_for_end_containing(segment: Segment):
         if self.links_b.has(segment):
