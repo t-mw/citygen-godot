@@ -119,9 +119,6 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     segment.destroy_physics_shape()
 
     for other in matches:
-        if segment == other:
-            continue
-
         # intersection check
         if action_priority <= 4:
             var intersection = segment.intersection_with(other)
