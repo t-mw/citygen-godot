@@ -19,9 +19,9 @@ const DEFAULT_BRANCH_PROBABILITY := 0.4
 # each 'highway' segment has this probability of producing a branching segment
 const HIGHWAY_BRANCH_PROBABILITY := 0.05
 # only place 'normal' segments when the population is high enough
-const NORMAL_BRANCH_POPULATION_THRESHOLD := 0.1
+const NORMAL_BRANCH_POPULATION_THRESHOLD := 0.5
 # only place 'highway' segments when the population is high enough
-const HIGHWAY_BRANCH_POPULATION_THRESHOLD := 0.1
+const HIGHWAY_BRANCH_POPULATION_THRESHOLD := 0.5
 # delay branching from 'highways' by this amount to prevent them from being blocked by 'normal' segments
 const NORMAL_BRANCH_TIME_DELAY_FROM_HIGHWAY := 5
 # allow a segment to intersect with an existing segment within this distance
