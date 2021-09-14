@@ -33,15 +33,7 @@ func _ready():
 
 func _draw():
     var segments = generate()
-
-    var viewport := get_viewport()
-    var camera := $Camera2D
-    var viewport_rect := viewport.get_visible_rect()
-    var global_to_viewport: Transform2D = viewport.global_canvas_transform * camera.get_canvas_transform()
-    var viewport_to_global: Transform2D = global_to_viewport.affine_inverse()
-    var viewport_rect_global: Rect2 = viewport_to_global.xform(viewport_rect)
-
-    draw_rect(viewport_rect_global, Color.gray, true)
+    draw_rect(Rect2(Vector2(-999999, -999999), 2 * Vector2(999999, 999999)), Color.gray, true)
     for segment in segments:
         var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
         draw_line(segment.r_start, segment.r_end, Color.black, width, true)
