@@ -1,3 +1,5 @@
+# Coordinates the generation and drawing of road segments and buildings
+
 extends Node2D
 
 const CityGen = preload("res://scripts/city_gen.gd")

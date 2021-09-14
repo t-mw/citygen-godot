@@ -1,3 +1,5 @@
+# Renders and samples a noise texture, used to simulate the effects of population on city growth
+
 extends Sprite
 
 onready var noise: OpenSimplexNoise = texture.noise
