@@ -1,7 +1,5 @@
 extends Node2D
 
-# TODO: replace angle_between with godot function
-
 const BRANCH_ANGLE_DEVIATION := 3.0 # degrees
 const STRAIGHT_ANGLE_DEVIATION := 15.0 # degrees
 const MINIMUM_INTERSECTION_DEVIATION := 30 # degrees
@@ -593,10 +591,6 @@ class Math:
         while val == 0 || randf() < pow(val, 3) / non_uniform_norm:
             val = rand_range(-limit, +limit)
         return val
-
-    static func angle_between(v1: Vector2, v2: Vector2) -> float:
-        var angle_rad = acos((v1.x * v2.x + v1.y * v2.y) / (v1.length() * v2.length()))
-        return rad2deg(angle_rad)
 
     static func min_degree_difference(d1: float, d2: float) -> float:
         var diff := fmod(abs(d1 - d2), 180)
