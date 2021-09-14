@@ -108,6 +108,7 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     query.collide_with_bodies = false
     query.collide_with_areas = true
     query.shape_rid = segment.create_physics_shape()
+    query.transform = segment.calculate_physics_shape_transform()
 
     var matches = []
     var query_results = physics_space.intersect_shape(query)

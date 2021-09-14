@@ -1,3 +1,6 @@
+# the width of the segment used when checking for collisions
+const SEGMENT_COLLIDER_WIDTH = 10.0
+
 class Segment extends Object:
     var physics_area: RID
     var physics_shape: RID
@@ -63,9 +66,15 @@ class Segment extends Object:
 
     func create_physics_shape() -> RID:
         if self.physics_shape.get_id() == 0:
-            self.physics_shape = Physics2DServer.segment_shape_create()
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.start, self.end))
+            self.physics_shape = Physics2DServer.rectangle_shape_create()
+            var shape_data = Vector2(SEGMENT_COLLIDER_WIDTH * 0.5, self.length * 0.5)
+            Physics2DServer.shape_set_data(self.physics_shape, shape_data)
         return self.physics_shape
+
+    func calculate_physics_shape_transform() -> Transform2D:
+        var xform = Transform2D.IDENTITY.rotated(deg2rad(-self.direction))
+        xform.origin = (self.start + self.end) * 0.5
+        return xform
 
     func destroy_physics_shape():
         if self.physics_shape.get_id() != 0:
@@ -78,6 +87,7 @@ class Segment extends Object:
         Physics2DServer.area_attach_object_instance_id(self.physics_area, get_instance_id())
         Physics2DServer.area_set_monitorable(self.physics_area, false)
         Physics2DServer.area_add_shape(self.physics_area, self.create_physics_shape())
+        Physics2DServer.area_set_shape_transform(self.physics_area, 0, self.calculate_physics_shape_transform())
         Physics2DServer.area_set_space(self.physics_area, physics_space_rid)
         self.physics_space = physics_space_rid
 
