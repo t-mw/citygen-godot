@@ -113,8 +113,8 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     var query_results = physics_space.intersect_shape(query)
     for result in query_results:
         var other = result.collider as Segment
-        assert(other != null)
-        matches.append(other)
+        if other != null:
+            matches.append(other)
 
     segment.destroy_physics_shape()
 
