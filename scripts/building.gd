@@ -36,7 +36,7 @@ func detach_from_physics_space():
     if self.physics_area.get_id() != 0:
         Physics2DServer.free_rid(self.physics_area)
         self.physics_area = RID()
-        self.destroy_physics_shape()
+    self.destroy_physics_shape()
 
 func generate_corners() -> PoolVector2Array:
     if len(self.corners) == 0:
