@@ -107,7 +107,9 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     var query = Physics2DShapeQueryParameters.new()
     query.collide_with_bodies = false
     query.collide_with_areas = true
-    query.shape_rid = segment.create_physics_shape()
+    var shape = CircleShape2D.new()
+    shape.radius = segment.length * 0.5 + MAX_SNAP_DISTANCE
+    query.shape_rid = shape.get_rid()
     query.transform = segment.calculate_physics_shape_transform()
 
     var matches = []
@@ -116,8 +118,6 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
         var other = result.collider as Segment
         if other != null:
             matches.append(other)
-
-    segment.destroy_physics_shape()
 
     for other in matches:
         # intersection check
