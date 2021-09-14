@@ -26,14 +26,23 @@ func random_branch_angle() -> float:
 func random_straight_angle() -> float:
     return Math.random_angle(STRAIGHT_ANGLE_DEVIATION)
 
-# Called when the node enters the scene tree for the first time.
+const Heatmap = preload("res://heatmap.gd")
+onready var population_heatmap: Heatmap = $"../PopulationHeatmap"
+
+var segments = []
+
 func _ready():
     randomize()
-    generate()
+
+    var noise = population_heatmap.noise
+    noise.seed = randi()
+    noise.octaves = 4
+    noise.period = 10.0
+    noise.persistence = 0.2
+
+    segments = generate()
 
 func _draw():
-    var segments = generate()
-    draw_rect(Rect2(Vector2(-999999, -999999), 2 * Vector2(999999, 999999)), Color.gray, true)
     for segment in segments:
         var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
         draw_line(segment.r_start, segment.r_end, Color.black, width, true)
@@ -76,6 +85,9 @@ func generate():
                 priority_q.append(new_segment)
 
     return segments
+
+func sample_population(start: Vector2, end: Vector2) -> float:
+    return (population_heatmap.sample(start) + population_heatmap.sample(end)) * 0.5
 
 func local_constraints(segment: Segment, segments: Array) -> bool:
     var action = null
@@ -191,11 +203,11 @@ func global_goals_generate(previous_segment: Segment) -> Array:
         var template = GlobalGoalsTemplate.new(previous_segment)
 
         var continue_straight = template.segment_continue(previous_segment.direction)
-        var straight_pop = 10 # TODO: heatmap.popOnRoad(continueStraight.r)
+        var straight_pop = sample_population(continue_straight.r_start, continue_straight.r_end)
 
         if previous_segment.metadata.highway:
             var random_straight = template.segment_continue(previous_segment.direction + random_straight_angle())
-            var random_pop = 10 # TODO: heatmap.popOnRoad(randomStraight.r)
+            var random_pop = sample_population(random_straight.r_start, random_straight.r_end)
             var road_pop = null
             if random_pop > straight_pop:
                 new_branches.append(random_straight)
