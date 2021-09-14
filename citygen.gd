@@ -1,6 +1,5 @@
 extends Node2D
 
-# TODO: remove r?
 # TODO: cross product necessary in Segment.get_direction?
 # TODO: replace angle_between with godot function
 
@@ -53,7 +52,7 @@ func _ready():
 func _draw():
     for segment in segments:
         var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
-        draw_line(segment.r_start, segment.r_end, Color.black, width, true)
+        draw_line(segment.start, segment.end, Color.black, width, true)
     for building in buildings:
         draw_colored_polygon(building.generate_corners(), Color.black, [], null, null, true)
 
@@ -78,8 +77,8 @@ func generate_segments() -> Array:
     var root_segment := Segment.new(Vector2(0, 0), Vector2(HIGHWAY_SEGMENT_LENGTH, 0), 0, root_metadata)
 
     var opposite_direction := root_segment.clone()
-    var new_end := Vector2(root_segment.r_start.x - HIGHWAY_SEGMENT_LENGTH, opposite_direction.r_end.y);
-    opposite_direction.r_end = new_end
+    var new_end := Vector2(root_segment.start.x - HIGHWAY_SEGMENT_LENGTH, opposite_direction.end.y);
+    opposite_direction.end = new_end
     opposite_direction.links_b.append(root_segment)
     root_segment.links_b.append(opposite_direction)
     priority_q.append(root_segment)
@@ -140,7 +139,7 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
         if action_priority <= 4:
             var intersection = segment.intersection_with(other)
             if intersection != null:
-                var intersection_distance_squared := segment.r_start.distance_squared_to(intersection)
+                var intersection_distance_squared := segment.start.distance_squared_to(intersection)
                 if previous_intersection_distance_squared == null || intersection_distance_squared < previous_intersection_distance_squared:
                     previous_intersection_distance_squared = intersection_distance_squared
                     action_priority = 4
@@ -150,15 +149,15 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
         if action_priority <= 3:
             # current segment's start must have been checked to have been created.
             # other segment's start must have a corresponding end.
-            if segment.r_end.distance_squared_to(other.r_end) <= ROAD_SNAP_DISTANCE * ROAD_SNAP_DISTANCE:
+            if segment.end.distance_squared_to(other.end) <= ROAD_SNAP_DISTANCE * ROAD_SNAP_DISTANCE:
                 action_priority = 3
-                action = LocalConstraintsSnapAction.new(other, other.r_end)
+                action = LocalConstraintsSnapAction.new(other, other.end)
 
         # intersection within radius check
         if action_priority <= 2:
-            if Math.is_point_in_segment_range(segment.r_end, other.r_start, other.r_end):
-                var intersection := Geometry.get_closest_point_to_segment_2d(segment.r_end, other.r_start, other.r_end)
-                var distance_squared := segment.r_end.distance_squared_to(intersection)
+            if Math.is_point_in_segment_range(segment.end, other.start, other.end):
+                var intersection := Geometry.get_closest_point_to_segment_2d(segment.end, other.start, other.end)
+                var distance_squared := segment.end.distance_squared_to(intersection)
                 if distance_squared < ROAD_SNAP_DISTANCE * ROAD_SNAP_DISTANCE:
                     action_priority = 2
                     action = LocalConstraintsIntersectionRadiusAction.new(other, intersection)
@@ -181,7 +180,7 @@ class LocalConstraintsIntersectionAction:
         if Math.min_degree_difference(self.other.direction, segment.direction) < MINIMUM_INTERSECTION_DEVIATION:
             return false
         self.other.split(self.intersection, segment, segments)
-        segment.r_end = self.intersection
+        segment.end = self.intersection
         segment.metadata.severed = true
         return true
 
@@ -194,20 +193,20 @@ class LocalConstraintsSnapAction:
         self.point = _point
 
     func apply(segment: Segment, segments: Array) -> bool:
-        segment.r_end = self.point
+        segment.end = self.point
         segment.metadata.severed = true
 
-        # update links of other segment corresponding to other.r_end
+        # update links of other segment corresponding to other.end
         var links := self.other.links_f if self.other.start_is_backwards() else self.other.links_b
 
         # check for duplicate lines, don't add if it exists
         for link in links:
-            if ((link.r_start.is_equal_approx(segment.r_end) && link.r_end.is_equal_approx(segment.r_start)) ||
-                (link.r_start.is_equal_approx(segment.r_start) && link.r_end.is_equal_approx(segment.r_end))):
+            if ((link.start.is_equal_approx(segment.end) && link.end.is_equal_approx(segment.start)) ||
+                (link.start.is_equal_approx(segment.start) && link.end.is_equal_approx(segment.end))):
                 return false
 
         for link in links:
-            # pick links of remaining segments at junction corresponding to other.r_end
+            # pick links of remaining segments at junction corresponding to other.end
             link.links_for_end_containing(self.other).append(segment)
             # add junction segments to snapped segment
             segment.links_f.append(link)
@@ -226,7 +225,7 @@ class LocalConstraintsIntersectionRadiusAction:
         self.intersection = _intersection
 
     func apply(segment: Segment, segments: Array) -> bool:
-        segment.r_end = self.intersection
+        segment.end = self.intersection
         segment.metadata.severed = true
         # if intersecting lines are too similar don't continue
         if Math.min_degree_difference(self.other.direction, segment.direction) < MINIMUM_INTERSECTION_DEVIATION:
@@ -240,11 +239,11 @@ func global_goals_generate(previous_segment: Segment) -> Array:
         var template := GlobalGoalsTemplate.new(previous_segment)
 
         var continue_straight = template.segment_continue(previous_segment.direction)
-        var straight_pop = sample_population(continue_straight.r_start, continue_straight.r_end)
+        var straight_pop = sample_population(continue_straight.start, continue_straight.end)
 
         if previous_segment.metadata.highway:
             var random_straight = template.segment_continue(previous_segment.direction + random_straight_angle())
-            var random_pop = sample_population(random_straight.r_start, random_straight.r_end)
+            var random_pop = sample_population(random_straight.start, random_straight.end)
             var road_pop = null
             if random_pop > straight_pop:
                 new_branches.append(random_straight)
@@ -297,8 +296,11 @@ class Segment extends Object:
     var physics_shape: RID
     var physics_space: RID
 
-    var start: Vector2
-    var end: Vector2
+    var start: Vector2 setget set_start
+    var end: Vector2 setget set_end
+
+    # increments when start or end are changed
+    var segment_revision: int = 0
 
     # time-step delay before this segment is evaluated
     var t: int
@@ -306,10 +308,6 @@ class Segment extends Object:
     # meta-information relevant to global goals
     var metadata: SegmentMetadata
 
-    # representation of road
-    var r_start: Vector2 setget set_r_start
-    var r_end: Vector2 setget set_r_end
-    var r_revision: int = 0
 
     # links backwards and forwards
     var links_b: Array = [] # [Segment]
@@ -322,29 +320,29 @@ class Segment extends Object:
     var length: float setget ,get_length
     var length_revision: int = -1
 
-    func set_r_start(v: Vector2):
-        r_start = v
+    func set_start(v: Vector2):
+        start = v
         if self.physics_shape.get_id() != 0:
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(v, self.r_end))
-        self.r_revision += 1
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(v, self.end))
+        self.segment_revision += 1
 
-    func set_r_end(v: Vector2):
-        r_end = v
+    func set_end(v: Vector2):
+        end = v
         if self.physics_shape.get_id() != 0:
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.r_start, v))
-        self.r_revision += 1
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.start, v))
+        self.segment_revision += 1
 
     func get_direction() -> float:
-        if self.direction_revision != self.r_revision:
-            self.direction_revision = self.r_revision
-            var vec = self.r_end - self.r_start
+        if self.direction_revision != self.segment_revision:
+            self.direction_revision = self.segment_revision
+            var vec = self.end - self.start
             direction = -1 * sign(Vector2(0, 1).cross(vec)) * Math.angle_between(Vector2(0, 1), vec)
         return direction
 
     func get_length() -> float:
-        if self.length_revision != self.r_revision:
-            self.length_revision = self.r_revision
-            length = (self.r_end - self.r_start).length()
+        if self.length_revision != self.segment_revision:
+            self.length_revision = self.segment_revision
+            length = (self.end - self.start).length()
         return length
 
     func _init(_start: Vector2, _end: Vector2, _t: int, _metadata: SegmentMetadata):
@@ -352,8 +350,8 @@ class Segment extends Object:
         self.end = _end
         self.t = _t
         self.metadata = _metadata
-        self.r_start = _start
-        self.r_end = _end
+        self.start = _start
+        self.end = _end
 
     func _notification(n):
         if n == NOTIFICATION_PREDELETE:
@@ -362,7 +360,7 @@ class Segment extends Object:
     func create_physics_shape() -> RID:
         if self.physics_shape.get_id() == 0:
             self.physics_shape = Physics2DServer.segment_shape_create()
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.r_start, self.r_end))
+            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.start, self.end))
         return self.physics_shape
 
     func destroy_physics_shape():
@@ -391,19 +389,19 @@ class Segment extends Object:
 
     func start_is_backwards() -> bool:
         if len(self.links_b) > 0:
-            return self.links_b[0].r_start.is_equal_approx(self.r_start) || self.links_b[0].r_end.is_equal_approx(self.r_start)
+            return self.links_b[0].start.is_equal_approx(self.start) || self.links_b[0].end.is_equal_approx(self.start)
         elif len(self.links_f) > 0:
-            return self.links_f[0].r_start.is_equal_approx(self.r_end) || self.links_f[0].r_end.is_equal_approx(self.r_end)
+            return self.links_f[0].start.is_equal_approx(self.end) || self.links_f[0].end.is_equal_approx(self.end)
         else:
             return false
 
     func intersection_with(other: Segment):
-        var point = Geometry.segment_intersects_segment_2d(self.r_start, self.r_end, other.r_start, other.r_end)
+        var point = Geometry.segment_intersects_segment_2d(self.start, self.end, other.start, other.end)
         if point == null:
             return null
         # ignore intersections at segment ends since these are not useful
-        if (point.is_equal_approx(self.r_start) || point.is_equal_approx(self.r_end) ||
-            point.is_equal_approx(other.r_start) || point.is_equal_approx(other.r_end)):
+        if (point.is_equal_approx(self.start) || point.is_equal_approx(self.end) ||
+            point.is_equal_approx(other.start) || point.is_equal_approx(other.end)):
             return null
         return point
 
@@ -411,8 +409,8 @@ class Segment extends Object:
         var start_is_backwards: = self.start_is_backwards()
         var split_part: = self.clone()
         segments.append(split_part)
-        split_part.set_r_end(point)
-        self.set_r_start(point)
+        split_part.set_end(point)
+        self.set_start(point)
 
         # links are not copied using clone - copy link array for the split part, keeping references the same
         split_part.links_b = self.links_b.duplicate(false)
@@ -466,7 +464,7 @@ class Segment extends Object:
         self.links_b.append(self.previous_segment_to_link)
 
     func clone() -> Segment:
-        return Segment.new(self.r_start, self.r_end, self.t, self.metadata.clone())
+        return Segment.new(self.start, self.end, self.t, self.metadata.clone())
 
 class SegmentMetadata:
     var highway: bool = false
@@ -490,7 +488,7 @@ func generate_buildings(segments: Array) -> Array:
             var random_radius = randf() * MAX_BUILDING_DISTANCE_FROM_SEGMENT
 
             var building = Building.new()
-            building.center = (segment.r_start + segment.r_end) * 0.5
+            building.center = (segment.start + segment.end) * 0.5
             building.center.x += random_radius * sin(deg2rad(random_angle))
             building.center.y += random_radius * cos(deg2rad(random_angle))
             building.direction = segment.direction
