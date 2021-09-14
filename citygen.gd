@@ -36,8 +36,8 @@ onready var population_heatmap: Heatmap = $"../PopulationHeatmap"
 onready var physics_space := get_world_2d().direct_space_state
 onready var physics_space_rid := get_world_2d().space
 
-var segments = []
-var buildings = []
+var generated_segments = []
+var generated_buildings = []
 
 func _ready():
     randomize()
@@ -48,27 +48,15 @@ func _ready():
     noise.period = 10.0
     noise.persistence = 0.2
 
-    segments = generate_segments()
-    buildings = generate_buildings(segments)
+    generated_segments = generate_segments()
+    generated_buildings = generate_buildings(generated_segments)
 
 func _draw():
-    for segment in segments:
+    for segment in generated_segments:
         var width = HIGHWAY_SEGMENT_WIDTH if segment.metadata.highway else DEFAULT_SEGMENT_WIDTH
         draw_line(segment.start, segment.end, Color.black, width, true)
-    for building in buildings:
+    for building in generated_buildings:
         draw_colored_polygon(building.generate_corners(), Color.black, [], null, null, true)
-
-func _process(delta):
-    var query_shape = RectangleShape2D.new()
-    var query = Physics2DShapeQueryParameters.new()
-    query.collide_with_bodies = false
-    query.collide_with_areas = true
-    query.set_shape(query_shape)
-    query.transform = Transform2D.IDENTITY.translated(get_global_mouse_position())
-
-    var results = physics_space.intersect_shape(query)
-    if len(results) > 0:
-        var segment = results[0].collider as Segment
 
 func generate_segments() -> Array:
     var segments := []
@@ -198,7 +186,7 @@ class LocalConstraintsSnapAction:
         self.other = _other
         self.point = _point
 
-    func apply(segment: Segment, segments: Array) -> bool:
+    func apply(segment: Segment, _segments: Array) -> bool:
         segment.end = self.point
         segment.metadata.severed = true
 
@@ -328,7 +316,6 @@ func generate_buildings(segments: Array) -> Array:
             query.collide_with_areas = true
             for placement_i in range(0, BUILDING_PLACEMENT_LOOP_LIMIT):
                 query.shape_rid = building.create_physics_shape()
-                var matches = []
                 var query_results = physics_space.collide_shape(query)
 
                 var is_final_placement_iteration = placement_i == BUILDING_PLACEMENT_LOOP_LIMIT - 1
