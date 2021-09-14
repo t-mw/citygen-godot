@@ -2,20 +2,23 @@ extends Node2D
 
 # TODO: remove r?
 # TODO: use quadtree?
-# TODO: cross product necessary in Segment.direction_get?
+# TODO: cross product necessary in Segment.get_direction?
+# TODO: replace angle_between with godot function
 
-const BRANCH_ANGLE_DEVIATION := 3.0
-const STRAIGHT_ANGLE_DEVIATION := 15.0
-const DEFAULT_SEGMENT_WIDTH := 5
-const HIGHWAY_SEGMENT_WIDTH := 20
-const DEFAULT_SEGMENT_LENGTH := 300
-const HIGHWAY_SEGMENT_LENGTH := 400
+const BRANCH_ANGLE_DEVIATION := 3.0 # degrees
+const STRAIGHT_ANGLE_DEVIATION := 15.0 # degrees
+const MINIMUM_INTERSECTION_DEVIATION := 30 # degrees
+const DEFAULT_SEGMENT_WIDTH := 5 # pixels
+const HIGHWAY_SEGMENT_WIDTH := 20 # pixels
+const DEFAULT_SEGMENT_LENGTH := 300 # world units
+const HIGHWAY_SEGMENT_LENGTH := 400 # world units
 const DEFAULT_BRANCH_PROBABILITY := 0.4
 const HIGHWAY_BRANCH_PROBABILITY := 0.05
 const HIGHWAY_BRANCH_POPULATION_THRESHOLD := 0.1
 const NORMAL_BRANCH_POPULATION_THRESHOLD := 0.1
 const NORMAL_BRANCH_TIME_DELAY_FROM_HIGHWAY := 5
 const SEGMENT_COUNT_LIMIT := 2000
+const ROAD_SNAP_DISTANCE := 50
 
 func random_branch_angle() -> float:
     return Math.random_angle(BRANCH_ANGLE_DEVIATION)
@@ -53,7 +56,7 @@ func generate():
 
     var opposite_direction := root_segment.clone()
     var new_end := Vector2(root_segment.r_start.x - HIGHWAY_SEGMENT_LENGTH, opposite_direction.r_end.y);
-    opposite_direction.set_r_end(new_end)
+    opposite_direction.r_end = new_end
     opposite_direction.links_b.append(root_segment)
     root_segment.links_b.append(opposite_direction)
     priority_q.append(root_segment)
@@ -83,7 +86,112 @@ func generate():
     return segments
 
 func local_constraints(segment: Segment, segments: Array) -> bool:
+    var action = null
+    var action_priority = 0
+    var previous_intersection_distance_squared = null
+    var matches := segments # TODO: filter potential colliders with quadtree
+    for other in matches:
+        if segment == other:
+            continue
+
+        # intersection check
+        if action_priority <= 4:
+            var intersection = segment.intersection_with(other)
+            if intersection != null:
+                var intersection_distance_squared := segment.r_start.distance_squared_to(intersection)
+                if previous_intersection_distance_squared == null || intersection_distance_squared < previous_intersection_distance_squared:
+                    previous_intersection_distance_squared = intersection_distance_squared
+                    action_priority = 4
+                    action = LocalConstraintsIntersectionAction.new(other, intersection)
+
+        # snap to crossing within radius check
+        if action_priority <= 3:
+            # current segment's start must have been checked to have been created.
+            # other segment's start must have a corresponding end.
+            if segment.r_end.distance_squared_to(other.r_end) <= ROAD_SNAP_DISTANCE * ROAD_SNAP_DISTANCE:
+                action_priority = 3
+                action = LocalConstraintsSnapAction.new(other, other.r_end)
+
+        # intersection within radius check
+        if action_priority <= 2:
+            if Math.is_point_in_segment_range(segment.r_end, other.r_start, other.r_end):
+                var intersection := Geometry.get_closest_point_to_segment_2d(segment.r_end, other.r_start, other.r_end)
+                var distance_squared := segment.r_end.distance_squared_to(intersection)
+                if distance_squared < ROAD_SNAP_DISTANCE * ROAD_SNAP_DISTANCE:
+                    action_priority = 2
+                    action = LocalConstraintsIntersectionRadiusAction.new(other, intersection)
+
+    if action != null:
+        return action.apply(segment, segments)
+
     return true
+
+class LocalConstraintsIntersectionAction:
+    var other: Segment
+    var intersection: Vector2
+
+    func _init(_other: Segment, _intersection: Vector2):
+        self.other = _other
+        self.intersection = _intersection
+
+    func apply(segment: Segment, segments: Array) -> bool:
+        # if intersecting lines are too similar don't continue
+        if Math.min_degree_difference(self.other.direction, segment.direction) < MINIMUM_INTERSECTION_DEVIATION:
+            return false
+        self.other.split(self.intersection, segment, segments)
+        segment.r_end = self.intersection
+        segment.metadata.severed = true
+        return true
+
+class LocalConstraintsSnapAction:
+    var other: Segment
+    var point: Vector2
+
+    func _init(_other: Segment, _point: Vector2):
+        self.other = _other
+        self.point = _point
+
+    func apply(segment: Segment, segments: Array) -> bool:
+        segment.r_end = self.point
+        segment.metadata.severed = true
+
+        # update links of other segment corresponding to other.r_end
+        var links := self.other.links_f if self.other.start_is_backwards() else self.other.links_b
+
+        # check for duplicate lines, don't add if it exists
+        for link in links:
+            if ((link.r_start.is_equal_approx(segment.r_end) && link.r_end.is_equal_approx(segment.r_start)) ||
+                (link.r_start.is_equal_approx(segment.r_start) && link.r_end.is_equal_approx(segment.r_end))):
+                return false
+
+        for link in links:
+            # pick links of remaining segments at junction corresponding to other.r_end
+            link.links_for_end_containing(self.other).append(segment)
+            # add junction segments to snapped segment
+            segment.links_f.append(link)
+
+        links.append(segment)
+        segment.links_f.append(self.other)
+
+        return true
+
+
+class LocalConstraintsIntersectionRadiusAction:
+    var other: Segment
+    var intersection: Vector2
+
+    func _init(_other: Segment, _intersection: Vector2):
+        self.other = _other
+        self.intersection = _intersection
+
+    func apply(segment: Segment, segments: Array) -> bool:
+        segment.r_end = self.intersection
+        segment.metadata.severed = true
+        # if intersecting lines are too similar don't continue
+        if Math.min_degree_difference(self.other.direction, segment.direction) < MINIMUM_INTERSECTION_DEVIATION:
+            return false
+        self.other.split(self.intersection, segment, segments)
+        return true
 
 func global_goals_generate(previous_segment: Segment) -> Array:
     var new_branches = []
@@ -204,8 +312,61 @@ class Segment:
         var new_end := Vector2(_start.x + _length * sin(deg2rad(_direction)), _start.y + _length * cos(deg2rad(_direction)))
         return Segment.new(_start, new_end, _t, _metadata)
 
+    func start_is_backwards() -> bool:
+        if len(self.links_b) > 0:
+            return self.links_b[0].r_start.is_equal_approx(self.r_start) || self.links_b[0].r_end.is_equal_approx(self.r_start)
+        elif len(self.links_f) > 0:
+            return self.links_f[0].r_start.is_equal_approx(self.r_end) || self.links_f[0].r_end.is_equal_approx(self.r_end)
+        else:
+            return false
+
     func intersection_with(other: Segment):
-        return Geometry.segment_intersects_segment_2d(self.r_start, self.r_end, other.r_start, other.r_end)
+        var point = Geometry.segment_intersects_segment_2d(self.r_start, self.r_end, other.r_start, other.r_end)
+        if point == null:
+            return null
+        # ignore intersections at segment ends since these are not useful
+        if (point.is_equal_approx(self.r_start) || point.is_equal_approx(self.r_end) ||
+            point.is_equal_approx(other.r_start) || point.is_equal_approx(other.r_end)):
+            return null
+        return point
+
+    func split(point: Vector2, segment: Segment, segments: Array):
+        var start_is_backwards: = self.start_is_backwards()
+        var split_part: = self.clone()
+        segments.append(split_part)
+        split_part.set_r_end(point)
+        self.set_r_start(point)
+
+        # links are not copied using clone - copy link array for the split part, keeping references the same
+        split_part.links_b = self.links_b.duplicate(false)
+        split_part.links_f = self.links_f.duplicate(false)
+
+        # work out which links correspond to which end of the split segment
+        var first_split: Segment
+        var second_split: Segment
+        var fix_links: Array
+        if start_is_backwards:
+            first_split = split_part
+            second_split = self
+            fix_links = split_part.links_b
+        else:
+            first_split = self
+            second_split = split_part
+            fix_links = split_part.links_f
+
+        for link in fix_links:
+            var index = link.links_b.find(self)
+            if index != -1:
+                link.links_b[index] = split_part
+            else:
+                index = link.links_f.find(self)
+                link.links_f[index] = split_part
+
+        first_split.links_f = [segment, second_split]
+        second_split.links_b = [segment, first_split]
+
+        segment.links_f.append(first_split)
+        segment.links_f.append(second_split)
 
     func links_for_end_containing(segment: Segment):
         if self.links_b.has(segment):
@@ -250,3 +411,12 @@ class Math:
     static func angle_between(v1: Vector2, v2: Vector2) -> float:
         var angle_rad = acos((v1.x * v2.x + v1.y * v2.y) / (v1.length() * v2.length()))
         return rad2deg(angle_rad)
+
+    static func min_degree_difference(d1: float, d2: float) -> float:
+        var diff := fmod(abs(d1 - d2), 180)
+        return min(diff, abs(diff - 180))
+
+    static func is_point_in_segment_range(point: Vector2, segment_start: Vector2, segment_end: Vector2) -> bool:
+        var vec := segment_end - segment_start
+        var dot := (point - segment_start).dot(vec)
+        return dot >= 0 && dot <= vec.length_squared()
