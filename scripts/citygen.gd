@@ -25,10 +25,10 @@ func random_branch_angle() -> float:
 func random_straight_angle() -> float:
     return Math.random_angle(STRAIGHT_ANGLE_DEVIATION)
 
-const Building = preload("res://building.gd")
-const Heatmap = preload("res://heatmap.gd")
-const Math = preload("res://math.gd")
-const segment_mod = preload("res://segment.gd")
+const Building = preload("res://scripts/building.gd")
+const Heatmap = preload("res://scripts/heatmap.gd")
+const Math = preload("res://scripts/math.gd")
+const segment_mod = preload("res://scripts/segment.gd")
 const Segment = segment_mod.Segment
 const SegmentMetadata = segment_mod.SegmentMetadata
 
@@ -158,7 +158,7 @@ func local_constraints(segment: Segment, segments: Array) -> bool:
     return true
 
 class LocalConstraintsIntersectionAction:
-    const Segment = preload("res://segment.gd").Segment
+    const Segment = preload("res://scripts/segment.gd").Segment
 
     var other: Segment
     var intersection: Vector2
@@ -177,7 +177,7 @@ class LocalConstraintsIntersectionAction:
         return true
 
 class LocalConstraintsSnapAction:
-    const Segment = preload("res://segment.gd").Segment
+    const Segment = preload("res://scripts/segment.gd").Segment
 
     var other: Segment
     var point: Vector2
@@ -211,7 +211,7 @@ class LocalConstraintsSnapAction:
         return true
 
 class LocalConstraintsIntersectionRadiusAction:
-    const Segment = preload("res://segment.gd").Segment
+    const Segment = preload("res://scripts/segment.gd").Segment
 
     var other: Segment
     var intersection: Vector2
@@ -270,7 +270,7 @@ func global_goals_generate(previous_segment: Segment) -> Array:
     return new_branches
 
 class GlobalGoalsTemplate:
-    const segment_mod = preload("res://segment.gd")
+    const segment_mod = preload("res://scripts/segment.gd")
     const Segment = segment_mod.Segment
     const SegmentMetadata = segment_mod.SegmentMetadata
 
