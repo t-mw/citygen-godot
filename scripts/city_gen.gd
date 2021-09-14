@@ -3,7 +3,8 @@
 extends Node2D
 
 # generate this number of segments - a higher limit produces larger networks
-const SEGMENT_COUNT_LIMIT := 2000
+export var segment_count_limit := 2000
+
 # a segment branching off at a 90 degree angle from an existing segment can vary its direction by +/- this amount
 const BRANCH_ANGLE_DEVIATION := 3.0 # degrees
 # a segment continuing straight ahead from an existing segment can vary its direction by +/- this amount
@@ -70,7 +71,7 @@ func generate_segments() -> Array:
     priority_q.append(root_segment)
     priority_q.append(opposite_direction)
 
-    while len(priority_q) > 0 && len(segments) < SEGMENT_COUNT_LIMIT:
+    while len(priority_q) > 0 && len(segments) < segment_count_limit:
         # pop smallest r(ti, ri, qi) from Q (i.e., smallest ‘t’)
         var min_t = null
         var min_t_i: int = 0
