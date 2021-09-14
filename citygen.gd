@@ -163,9 +163,9 @@ class LocalConstraintsIntersectionAction:
     var other: Segment
     var intersection: Vector2
 
-    func _init(_other: Segment, _intersection: Vector2):
-        self.other = _other
-        self.intersection = _intersection
+    func _init(other_: Segment, intersection_: Vector2):
+        self.other = other_
+        self.intersection = intersection_
 
     func apply(segment: Segment, segments: Array) -> bool:
         # if intersecting lines are too similar don't continue
@@ -182,9 +182,9 @@ class LocalConstraintsSnapAction:
     var other: Segment
     var point: Vector2
 
-    func _init(_other: Segment, _point: Vector2):
-        self.other = _other
-        self.point = _point
+    func _init(other_: Segment, point_: Vector2):
+        self.other = other_
+        self.point = point_
 
     func apply(segment: Segment, _segments: Array) -> bool:
         segment.end = self.point
@@ -216,9 +216,9 @@ class LocalConstraintsIntersectionRadiusAction:
     var other: Segment
     var intersection: Vector2
 
-    func _init(_other: Segment, _intersection: Vector2):
-        self.other = _other
-        self.intersection = _intersection
+    func _init(other_: Segment, intersection_: Vector2):
+        self.other = other_
+        self.intersection = intersection_
 
     func apply(segment: Segment, segments: Array) -> bool:
         segment.end = self.intersection
@@ -276,8 +276,8 @@ class GlobalGoalsTemplate:
 
     var previous_segment: Segment
 
-    func _init(_previous_segment: Segment):
-        self.previous_segment = _previous_segment
+    func _init(previous_segment_: Segment):
+        self.previous_segment = previous_segment_
 
     func segment(direction: float, length: float, t: int, metadata: SegmentMetadata) -> Segment:
         return Segment.new_using_direction(self.previous_segment.end, direction, length, t, metadata)

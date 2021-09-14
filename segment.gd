@@ -51,13 +51,11 @@ class Segment extends Object:
             length = (self.end - self.start).length()
         return length
 
-    func _init(_start: Vector2, _end: Vector2, _t: int, _metadata: SegmentMetadata):
-        self.start = _start
-        self.end = _end
-        self.t = _t
-        self.metadata = _metadata
-        self.start = _start
-        self.end = _end
+    func _init(start_: Vector2, end_: Vector2, t_: int, metadata_: SegmentMetadata):
+        self.start = start_
+        self.end = end_
+        self.t = t_
+        self.metadata = metadata_
 
     func _notification(n):
         if n == NOTIFICATION_PREDELETE:
