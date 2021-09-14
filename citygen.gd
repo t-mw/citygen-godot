@@ -1,6 +1,5 @@
 extends Node2D
 
-# TODO: cross product necessary in Segment.get_direction?
 # TODO: replace angle_between with godot function
 
 const BRANCH_ANGLE_DEVIATION := 3.0 # degrees
@@ -336,7 +335,7 @@ class Segment extends Object:
         if self.direction_revision != self.segment_revision:
             self.direction_revision = self.segment_revision
             var vec = self.end - self.start
-            direction = -1 * sign(Vector2(0, 1).cross(vec)) * Math.angle_between(Vector2(0, 1), vec)
+            direction = rad2deg(-vec.angle()) + 90
         return direction
 
     func get_length() -> float:
