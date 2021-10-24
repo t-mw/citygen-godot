@@ -104,8 +104,7 @@ func _physics_process(delta):
 
 func _unhandled_input( event ):
     if event is InputEventMouseButton:
-        if drag and\
-           event.button_index == BUTTON_RIGHT:
+        if drag and (event.button_index == BUTTON_LEFT || event.button_index == BUTTON_RIGHT):
             # Control by right mouse button.
             if event.pressed: __rmbk = true
             else: __rmbk = false
