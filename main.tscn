@@ -44,7 +44,7 @@ text = "Show population heatmap"
 current = true
 zoom = Vector2( 15, 15 )
 script = ExtResource( 2 )
-zoom_out_limit = 15
+zoom_out_limit = 30
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 layer = -1
