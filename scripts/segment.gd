@@ -31,14 +31,10 @@ class Segment extends Object:
 
     func set_start(v: Vector2):
         start = v
-        if self.physics_shape.get_id() != 0:
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(v, self.end))
         self.segment_revision += 1
 
     func set_end(v: Vector2):
         end = v
-        if self.physics_shape.get_id() != 0:
-            Physics2DServer.shape_set_data(self.physics_shape, Rect2(self.start, v))
         self.segment_revision += 1
 
     func get_direction() -> float:
